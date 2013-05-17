@@ -30,10 +30,12 @@ public class ASPDB extends SQLiteOpenHelper {
 				+ "vol_media INTEGER NOT NULL, "
 				+ "vol_alarm INTEGER NOT NULL, "
 				+ "vib_ring INTEGER NOT NULL, "
-				+ "vib_notify INTEGER NOT NULL);");
+				+ "vib_notify INTEGER NOT NULL, " 
+				+ "default INTEGER NOT NULL);");
 		db.execSQL("CREATE TABLE schedules ("
 				+ "_id INTEGER PRIMARY KEY AUTOINCREMENT, "
-				+ "name TEXT NOT NULL, " + "p_id INTEGER NOT NULL, "
+				+ "name TEXT NOT NULL, " + "color INTEGER NOT NULL, " 
+				+ "p_id INTEGER NOT NULL, "
 				+ "sun INTEGER NOT NULL, " + "mon INTEGER NOT NULL, "
 				+ "tue INTEGER NOT NULL, " + "wed INTEGER NOT NULL, "
 				+ "thu INTEGER NOT NULL, " + "fri INTEGER NOT NULL, "
@@ -41,12 +43,13 @@ public class ASPDB extends SQLiteOpenHelper {
 				+ "length INTEGER NOT NULL);");
 		db.execSQL("CREATE TABLE exceptions ("
 				+ "_id INTEGER PRIMARY KEY AUTOINCREMENT, "
-				+ "name TEXT NOT NULL, " + "p_id INTEGER NOT NULL, "
+				+ "name TEXT NOT NULL, " + "color INTEGER NOT NULL, "
+				+ "p_id INTEGER NOT NULL, "
 				+ "start_utc INTEGER NOT NULL, " + "length INTEGER NOT NULL, "
 				+ "end_utc INTEGER NOT NULL);");
 		db.execSQL("CREATE TABLE queue ("
 				+ "_id INTEGER PRIMARY KEY AUTOINCREMENT, " + "s_id INTEGER, "
-				+ "e_id INTEGER, " + "p_id INTEGER NOT NULL, "
+				+ "e_id INTEGER, " + "p_id INTEGER NOT NULL, " + "color INTEGER NOT NULL, "
 				+ "start_utc INTEGER NOT NULL, " + "length INTEGER NOT NULL, "
 				+ "end_utc INTEGER NOT NULL);");
 	}
@@ -105,14 +108,25 @@ public class ASPDB extends SQLiteOpenHelper {
 		SQLiteDatabase db = this.getWritableDatabase();
 		
 		db.execSQL("INSERT INTO profiles " +
-				"(_id, name, vol_ring, vol_notify, vol_media, vol_alarm, vib_ring, vib_notify)" +
+				"(_id, name, vol_ring, vol_notify, vol_media, vol_alarm, vib_ring, vib_notify, default)" +
 				" VALUES " +
-				"(null, \"" + name +"\", " + volRing + ", " + volNotify + ", " + volMedia + ", " + volAlarm + ", " + vibRing + ", " + vibNotify + ");");
+				"(null, \"" + name +"\", " + volRing + ", " + volNotify + ", " + volMedia + ", " + volAlarm + ", " + vibRing + ", " + vibNotify + ", 0);");
+	
+		db.close();
+	}
+
+	public void createDefault(String name, int volRing, int volNotify, int volMedia, int volAlarm, int vibRing, int vibNotify) {
+		SQLiteDatabase db = this.getWritableDatabase();
+		
+		db.execSQL("INSERT INTO profiles " +
+				"(_id, name, vol_ring, vol_notify, vol_media, vol_alarm, vib_ring, vib_notify, default)" +
+				" VALUES " +
+				"(null, \"" + name +"\", " + volRing + ", " + volNotify + ", " + volMedia + ", " + volAlarm + ", " + vibRing + ", " + vibNotify + ", 1);");
 	
 		db.close();
 	}
 	
-	public long createSchedule(String name, long pId, int sun, int mon, int tue, int wed, int thu, int fri, int sat, long start, long length) {
+	public long createSchedule(String name, int color, long pId, int sun, int mon, int tue, int wed, int thu, int fri, int sat, long start, long length) {
 		
 		SQLiteDatabase db = this.getWritableDatabase();
 		Cursor c = db.rawQuery("SELECT * FROM schedules;", null);
@@ -161,15 +175,15 @@ public class ASPDB extends SQLiteOpenHelper {
 		}
 		
 		db.execSQL("INSERT INTO schedules " +
-				"(_id, name, p_id, sun, mon, tue, wed, thu, fri, sat, start, length)" +
+				"(_id, name, color, p_id, sun, mon, tue, wed, thu, fri, sat, start, length)" +
 				" VALUES " +
-				"(null, \"" + name +"\", " + pId + ", " + sun + ", " + mon + ", " + tue + ", " + wed + ", " + thu + ", " + fri + ", " + sat + ", " + start + ", " + length + ");"); 
+				"(null, \"" + name +"\", " + color + ", " + pId + ", " + sun + ", " + mon + ", " + tue + ", " + wed + ", " + thu + ", " + fri + ", " + sat + ", " + start + ", " + length + ");"); 
 	
 		db.close();
 		return -1;
 	}
 	
-	public long createException(String name, long pId, long startUTC, long length) {
+	public long createException(String name, int color, long pId, long startUTC, long length) {
 		
 		long endUTC = startUTC + length;
 		
@@ -209,9 +223,9 @@ public class ASPDB extends SQLiteOpenHelper {
 		}
 		
 		db.execSQL("INSERT INTO exceptions " +
-				"(_id, name, p_id, start_utc, length, end_utc)" +
+				"(_id, name, color, p_id, start_utc, length, end_utc)" +
 				" VALUES " +
-				"(null, \"" + name +"\", " + pId + ", " + startUTC + ", " + length + ", " + endUTC + ");");
+				"(null, \"" + name +"\", " + color + ", " + pId + ", " + startUTC + ", " + length + ", " + endUTC + ");");
 	
 		db.close();
 		return -1;
@@ -220,6 +234,28 @@ public class ASPDB extends SQLiteOpenHelper {
 	public Profile getProfile(long id) {
 		SQLiteDatabase db = this.getWritableDatabase();
 		Cursor c = db.rawQuery("SELECT * FROM profiles WHERE _id = " + id + ";", null);
+		
+		if (c.getCount() > 0) {
+			
+			c.moveToFirst();
+			
+			Profile p = new Profile(c);
+			
+			c.close();
+			db.close();
+			
+			return p;
+		}
+		
+		c.close();
+		db.close();
+		
+		return null;
+	}
+	
+	public Profile getDefault() {
+		SQLiteDatabase db = this.getWritableDatabase();
+		Cursor c = db.rawQuery("SELECT * FROM profiles WHERE default = 1;", null);
 		
 		if (c.getCount() > 0) {
 			
@@ -326,12 +362,29 @@ public class ASPDB extends SQLiteOpenHelper {
 	
 		db.close();
 	}
+
+	public void editDefault(String name, int volRing, int volNotify, int volMedia, int volAlarm, int vibRing, int vibNotify) {
+		SQLiteDatabase db = this.getWritableDatabase();
+		
+		db.execSQL("UPDATE profile SET " +
+				"name = \"" + name +"\", " +
+				"vol_ring = " + volRing + ", " +
+				"vol_notify = " + volNotify + ", " +
+				"vol_media = " + volMedia + ", " +
+				"vol_alarm = " + volAlarm + ", " +
+				"vib_ring = " + vibRing + ", " +
+				"vib_notify = " + vibNotify + " " + 
+				"WHERE default = 1;");
 	
-	public void editSchedule(long id, String name, long pId, int sun, int mon, int tue, int wed, int thu, int fri, int sat, long start, long length) {
+		db.close();
+	}
+	
+	public void editSchedule(long id, String name, int color, long pId, int sun, int mon, int tue, int wed, int thu, int fri, int sat, long start, long length) {
 		SQLiteDatabase db = this.getWritableDatabase();
 		
 		db.execSQL("UPDATE schedules SET " +
 				"name = \"" + name +"\", " +
+				"color = " + color + ", " +
 				"p_id = " + pId + ", " +
 				"sun = " + sun + ", " +
 				"mon = " + mon + ", " +
@@ -347,11 +400,12 @@ public class ASPDB extends SQLiteOpenHelper {
 		db.close();
 	}
 	
-	public void editException(long id, String name, long pId, long startUTC, long length, long endUTC) {
+	public void editException(long id, String name, int color, long pId, long startUTC, long length, long endUTC) {
 		SQLiteDatabase db = this.getWritableDatabase();
 		
 		db.execSQL("UPDATE schedules SET " +
 				"name = \"" + name +"\", " +
+				"color = " + color + ", " +
 				"p_id = " + pId + ", " +
 				"startUTC = " + startUTC + ", " +
 				"length = " + length + ", " +
@@ -377,6 +431,7 @@ public class ASPDB extends SQLiteOpenHelper {
 		cal.set(Calendar.MILLISECOND, 0);
 
 		long startUTC, length, endUTC, sId, eId, pId;
+		int color;
 		String[] days = new String[] {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
 		
 		for (int i = 0; i < depthInWeeks; i++) {
@@ -399,12 +454,13 @@ public class ASPDB extends SQLiteOpenHelper {
 					
 						sId = c1.getLong(c1.getColumnIndex("_id"));
 						pId = c1.getLong(c1.getColumnIndex("p_id"));
+						color = c1.getInt(c1.getColumnIndex("color"));
 						startUTC = cal.getTimeInMillis();
 						length = c1.getLong(c1.getColumnIndex("length"));
 						endUTC = startUTC + length;
 						
-						db.execSQL("INSERT INTO queue (_id, s_id, e_id, p_id, start_utc, length, end_utc) VALUES ("
-								+ "null, " + sId + ", "	+ "null, " + pId + ", "	+ startUTC + ", " + length + ", " + endUTC + ");");
+						db.execSQL("INSERT INTO queue (_id, s_id, e_id, p_id, color, start_utc, length, end_utc) VALUES ("
+								+ "null, " + sId + ", "	+ "null, " + pId + ", "	+ color + ", " + startUTC + ", " + length + ", " + endUTC + ");");
 					
 					} while (c1.moveToNext());
 				
@@ -472,13 +528,14 @@ public class ASPDB extends SQLiteOpenHelper {
 					} while (c2.moveToNext());
 				
 				}
-				
+
+				color = c1.getInt(c1.getColumnIndex("color"));
 				eId = c1.getLong(c1.getColumnIndex("_id"));
 				pId = c1.getLong(c1.getColumnIndex("p_id"));
 				length = endUTC - startUTC;
 				
-				db.execSQL("INSERT INTO queue (_id, s_id, e_id, p_id, start_utc, length, end_utc) VALUES ("
-						+ "null, null, " + eId + ", " + pId + ", "	+ startUTC + ", " + length + ", " + endUTC + ");");
+				db.execSQL("INSERT INTO queue (_id, s_id, e_id, p_id, color, start_utc, length, end_utc) VALUES ("
+						+ "null, null, " + eId + ", " + pId + ", "	+ color + ", " + startUTC + ", " + length + ", " + endUTC + ");");
 				
 			} while (c1.moveToNext());
 			
@@ -547,11 +604,13 @@ public class ASPDB extends SQLiteOpenHelper {
 	public class Schedule {
 		long id, pId, start, length;
 		String name;
+		int color;
 		int sun, mon, tue, wed, thu, fri, sat;
 		
 		public Schedule(Cursor c) {
 			id = c.getLong(c.getColumnIndex("_id"));
 			name = c.getString(c.getColumnIndex("name"));
+			color = c.getInt(c.getColumnIndex("color"));
 			sun = c.getInt(c.getColumnIndex("sun"));
 			mon = c.getInt(c.getColumnIndex("mon"));
 			tue = c.getInt(c.getColumnIndex("tue"));
@@ -620,6 +679,7 @@ public class ASPDB extends SQLiteOpenHelper {
 	}
 	
 	public class QueueItem {
+		int color;
 		Long id, sId, eId, pId, startUTC, length, endUTC;
 		
 		public QueueItem(Cursor c) {
@@ -628,6 +688,7 @@ public class ASPDB extends SQLiteOpenHelper {
 			sId = c.getLong(c.getColumnIndex("s_id"));
 			eId = c.getLong(c.getColumnIndex("e_id"));
 			pId = c.getLong(c.getColumnIndex("p_id"));
+			color = c.getInt(c.getColumnIndex("color"));
 			startUTC = c.getLong(c.getColumnIndex("start_utc"));
 			length = c.getLong(c.getColumnIndex("length"));
 			endUTC = c.getLong(c.getColumnIndex("end_utc"));
@@ -638,10 +699,12 @@ public class ASPDB extends SQLiteOpenHelper {
 	public class Exception {
 		long id, pId, startUTC, length, endUTC;
 		String name;
+		int color;
 		
 		public Exception(Cursor c) {
 			id = c.getLong(c.getColumnIndex("_id"));
 			name = c.getString(c.getColumnIndex("name"));
+			color = c.getInt(c.getColumnIndex("color"));
 			startUTC = c.getLong(c.getColumnIndex("start_utc"));
 			length = c.getLong(c.getColumnIndex("length"));
 			endUTC = c.getLong(c.getColumnIndex("end_utc"));
